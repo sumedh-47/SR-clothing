@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { defaultSiteContent } from './siteDefaults.js';
 import { apiUrl, mediaUrl } from './api.js';
+import { sampleProducts } from '../../server/data/products.js';
 
 const defaultCategories = ['T-Shirts', 'Shirts', 'Hoodies', 'Jackets'];
+const isStaticPreview = import.meta.env.VITE_STATIC_PREVIEW === 'true';
 const formatPrice = (price) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(price) || 0);
 const hasAvailableStock = (product) => product.isAvailable !== false
   && product.available !== false
@@ -47,8 +49,10 @@ function Icon({ name, size = 20, fill = 'none' }) {
 function App() {
   const logoTapCount = useRef(0);
   const logoTapTimer = useRef(null);
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState(defaultCategories);
+  const [products, setProducts] = useState(isStaticPreview ? sampleProducts : []);
+  const [categories, setCategories] = useState(isStaticPreview
+    ? [...new Set(sampleProducts.map((product) => product.category))]
+    : defaultCategories);
   const [siteContent, setSiteContent] = useState(defaultSiteContent);
   const [category, setCategory] = useState('All pieces');
   const [query, setQuery] = useState('');
@@ -68,18 +72,19 @@ function App() {
   const [checkout, setCheckout] = useState(false);
   const [notice, setNotice] = useState('');
   const [orderReceipt, setOrderReceipt] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isStaticPreview);
   const [apiError, setApiError] = useState('');
 
   // Client Authentication State
   const [customer, setCustomer] = useState(() => {
+    if (isStaticPreview) return null;
     try {
       return JSON.parse(localStorage.getItem('fasion-customer'));
     } catch {
       return null;
     }
   });
-  const [customerToken, setCustomerToken] = useState(() => localStorage.getItem('fasion-customer-token') || '');
+  const [customerToken, setCustomerToken] = useState(() => isStaticPreview ? '' : localStorage.getItem('fasion-customer-token') || '');
   const [authMode, setAuthMode] = useState('guest'); // 'guest', 'login', 'register', 'account'
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
@@ -87,6 +92,10 @@ function App() {
   const [paymentLoading, setPaymentLoading] = useState(false);
 
   useEffect(() => {
+    if (isStaticPreview) {
+      setLoading(false);
+      return;
+    }
     fetch(apiUrl('/api/products'))
       .then((response) => {
         if (!response.ok) throw new Error('The shop could not load right now.');
@@ -98,6 +107,7 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (isStaticPreview) return;
     fetch(apiUrl('/api/site-content'))
       .then((response) => {
         if (!response.ok) throw new Error('Store content could not load right now.');
@@ -108,6 +118,7 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (isStaticPreview) return;
     fetch(apiUrl('/api/categories'))
       .then((response) => {
         if (!response.ok) throw new Error('Product categories could not load right now.');
@@ -169,6 +180,7 @@ function App() {
   };
 
   function handleLogoTap() {
+    if (isStaticPreview) return;
     logoTapCount.current += 1;
     window.clearTimeout(logoTapTimer.current);
     if (logoTapCount.current === 5) {
@@ -321,6 +333,11 @@ function App() {
 
   async function placeOrder(event) {
     event.preventDefault();
+    if (isStaticPreview) {
+      setNotice('Checkout is unavailable in this static preview.');
+      window.setTimeout(() => setNotice(''), 4000);
+      return;
+    }
     if (paymentLoading) return;
     const form = new FormData(event.currentTarget);
     setPaymentLoading(true);
@@ -414,9 +431,10 @@ function App() {
 
   return (
     <>
+      {isStaticPreview && <div className="preview-banner" role="status">Static preview · Browse and add pieces to your bag; checkout, accounts, and admin are unavailable.</div>}
       <div className="announcement">{siteContent.announcement}</div>
       <header className="site-header">
-        <button className="wordmark" type="button" onClick={handleLogoTap} aria-label="Tap the logo five times to open the admin panel">{siteContent.brandName}<span>®</span></button>
+        <button className="wordmark" type="button" onClick={handleLogoTap} aria-label={isStaticPreview ? 'FASION home' : 'Tap the logo five times to open the admin panel'}>{siteContent.brandName}<span>®</span></button>
         <nav className="main-nav" aria-label="Main navigation">
           <a href="#collection" onClick={() => setCategory('All pieces')}>Shop all</a>
           {categories.map((name) => <a key={name} href="#collection" onClick={() => setCategory(name)}>{categoryLabel(name)}</a>)}
@@ -427,7 +445,7 @@ function App() {
             <Icon name="search" size={18} />
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search" />
           </label>
-          <button
+          {!isStaticPreview && <button
             className="account-button"
             type="button"
             onClick={() => {
@@ -444,7 +462,7 @@ function App() {
           >
             <Icon name="user" size={18} />
             <span className="account-label">{customer ? customer.name.split(' ')[0] : 'Sign in'}</span>
-          </button>
+          </button>}
           <button className="bag-button" onClick={() => { setCartOpen(true); setCheckout(false); setAuthMode('guest'); }} aria-label={`Open bag, ${itemCount} items`}>
             <Icon name="bag" size={20} /><span className="bag-label">Bag</span><span className="bag-count">{itemCount}</span>
           </button>
@@ -640,7 +658,9 @@ function App() {
           ) : checkout ? (
             /* VIEW 4: Checkout Form with Client Sign-In option & prefill */
             <form className="checkout-form" onSubmit={placeOrder}>
-              {customer ? (
+              {isStaticPreview ? (
+                <p className="preview-checkout-note">This is a static preview. Checkout and order placement are unavailable.</p>
+              ) : customer ? (
                 <div className="client-signed-badge">
                   <div className="client-badge-avatar">{customer.name.charAt(0).toUpperCase()}</div>
                   <div className="client-badge-info">
@@ -680,7 +700,7 @@ function App() {
           ) : cart.length ? (
             /* VIEW 5: Bag Items */
             <>
-              {customer ? (
+              {!isStaticPreview && (customer ? (
                 <div className="cart-user-bar">
                   <span>Signed in as <strong>{customer.name}</strong></span>
                   <button type="button" className="text-button" onClick={() => { setAuthMode('account'); fetchCustomerOrders(); }}>My Account</button>
@@ -690,7 +710,7 @@ function App() {
                   <span>Client exclusive perks</span>
                   <button type="button" className="text-button" onClick={() => { setAuthMode('login'); setAuthError(''); }}>Sign in / Register</button>
                 </div>
-              )}
+              ))}
               <div className="cart-items">
                 {cart.map((item) => (
                   <div className="cart-item" key={`${item._id}-${item.variantSku || 'base'}`}>
@@ -710,8 +730,10 @@ function App() {
               </div>
               <div className="drawer-bottom">
                 <div className="subtotal"><span>Subtotal</span><strong>{formatPrice(subtotal)}</strong></div>
-                <p>Complimentary shipping on all orders. Applicable taxes calculated at checkout.</p>
-                <button className="primary-button" onClick={() => setCheckout(true)}>Continue to checkout <Icon name="arrow" size={18} /></button>
+                <p>{isStaticPreview ? 'Your bag is saved only in this browser. No orders can be placed.' : 'Complimentary shipping on all orders. Applicable taxes calculated at checkout.'}</p>
+                {isStaticPreview
+                  ? <button className="primary-button" type="button" disabled>Checkout unavailable in preview</button>
+                  : <button className="primary-button" onClick={() => setCheckout(true)}>Continue to checkout <Icon name="arrow" size={18} /></button>}
               </div>
             </>
           ) : (

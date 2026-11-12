@@ -4,8 +4,10 @@ import App from './App.jsx';
 import Admin from './Admin.jsx';
 import './styles.css';
 
+const isStaticPreview = import.meta.env.VITE_STATIC_PREVIEW === 'true';
+
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    {window.location.pathname === '/admin' ? <Admin /> : <App />}
+    {!isStaticPreview && window.location.pathname === '/admin' ? <Admin /> : <App />}
   </React.StrictMode>,
 );
