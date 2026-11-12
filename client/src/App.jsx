@@ -5,6 +5,9 @@ import { sampleProducts } from '../../server/data/products.js';
 
 const defaultCategories = ['T-Shirts', 'Shirts', 'Hoodies', 'Jackets'];
 const isStaticPreview = import.meta.env.VITE_STATIC_PREVIEW === 'true';
+const isCommerceEnabled = !isStaticPreview && (import.meta.env.VITE_COMMERCE_ENABLED === 'true'
+  || (!import.meta.env.PROD && import.meta.env.VITE_COMMERCE_ENABLED === undefined));
+const isAdminOnlyMode = !isStaticPreview && !isCommerceEnabled;
 const formatPrice = (price) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(price) || 0);
 const hasAvailableStock = (product) => product.isAvailable !== false
   && product.available !== false
@@ -77,14 +80,14 @@ function App() {
 
   // Client Authentication State
   const [customer, setCustomer] = useState(() => {
-    if (isStaticPreview) return null;
+    if (!isCommerceEnabled) return null;
     try {
       return JSON.parse(localStorage.getItem('fasion-customer'));
     } catch {
       return null;
     }
   });
-  const [customerToken, setCustomerToken] = useState(() => isStaticPreview ? '' : localStorage.getItem('fasion-customer-token') || '');
+  const [customerToken, setCustomerToken] = useState(() => isCommerceEnabled ? localStorage.getItem('fasion-customer-token') || '' : '');
   const [authMode, setAuthMode] = useState('guest'); // 'guest', 'login', 'register', 'account'
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
@@ -138,7 +141,7 @@ function App() {
 
   // Sync / Verify Customer Session on mount
   useEffect(() => {
-    if (customerToken) {
+    if (isCommerceEnabled && customerToken) {
       fetch(apiUrl('/api/customer/me'), {
         headers: { Authorization: `Bearer ${customerToken}` },
       })
@@ -333,8 +336,8 @@ function App() {
 
   async function placeOrder(event) {
     event.preventDefault();
-    if (isStaticPreview) {
-      setNotice('Checkout is unavailable in this static preview.');
+    if (!isCommerceEnabled) {
+      setNotice(isStaticPreview ? 'Checkout is unavailable in this static preview.' : 'Customer checkout is disabled on this site.');
       window.setTimeout(() => setNotice(''), 4000);
       return;
     }
@@ -432,6 +435,7 @@ function App() {
   return (
     <>
       {isStaticPreview && <div className="preview-banner" role="status">Static preview · Browse and add pieces to your bag; checkout, accounts, and admin are unavailable.</div>}
+      {isAdminOnlyMode && <div className="preview-banner" role="status">Customer accounts and checkout are disabled on this site.</div>}
       <div className="announcement">{siteContent.announcement}</div>
       <header className="site-header">
         <button className="wordmark" type="button" onClick={handleLogoTap} aria-label={isStaticPreview ? 'FASION home' : 'Tap the logo five times to open the admin panel'}>{siteContent.brandName}<span>®</span></button>
@@ -445,7 +449,7 @@ function App() {
             <Icon name="search" size={18} />
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search" />
           </label>
-          {!isStaticPreview && <button
+          {isCommerceEnabled && <button
             className="account-button"
             type="button"
             onClick={() => {
@@ -658,49 +662,53 @@ function App() {
           ) : checkout ? (
             /* VIEW 4: Checkout Form with Client Sign-In option & prefill */
             <form className="checkout-form" onSubmit={placeOrder}>
-              {isStaticPreview ? (
-                <p className="preview-checkout-note">This is a static preview. Checkout and order placement are unavailable.</p>
-              ) : customer ? (
-                <div className="client-signed-badge">
-                  <div className="client-badge-avatar">{customer.name.charAt(0).toUpperCase()}</div>
-                  <div className="client-badge-info">
-                    <small>ORDERING AS REGISTERED CLIENT</small>
-                    <strong>{customer.name}</strong>
-                    <span>{customer.email}</span>
-                  </div>
-                  <button type="button" className="text-button badge-signout" onClick={handleCustomerLogout}>Switch</button>
-                </div>
+              {!isCommerceEnabled ? (
+                <p className="preview-checkout-note">{isStaticPreview ? 'This is a static preview. Checkout and order placement are unavailable.' : 'Customer checkout is disabled on this site.'}</p>
               ) : (
-                <div className="cart-client-banner">
-                  <div>
-                    <strong>Already have a client account?</strong>
-                    <span>Sign in to use your saved details.</span>
-                  </div>
-                  <button type="button" className="text-button" onClick={() => { setAuthMode('login'); setAuthError(''); }}>Sign in</button>
-                </div>
-              )}
+                <>
+                  {customer ? (
+                    <div className="client-signed-badge">
+                      <div className="client-badge-avatar">{customer.name.charAt(0).toUpperCase()}</div>
+                      <div className="client-badge-info">
+                        <small>ORDERING AS REGISTERED CLIENT</small>
+                        <strong>{customer.name}</strong>
+                        <span>{customer.email}</span>
+                      </div>
+                      <button type="button" className="text-button badge-signout" onClick={handleCustomerLogout}>Switch</button>
+                    </div>
+                  ) : (
+                    <div className="cart-client-banner">
+                      <div>
+                        <strong>Already have a client account?</strong>
+                        <span>Sign in to use your saved details.</span>
+                      </div>
+                      <button type="button" className="text-button" onClick={() => { setAuthMode('login'); setAuthError(''); }}>Sign in</button>
+                    </div>
+                  )}
 
-              <p className="checkout-intro">Shipping &amp; Delivery Details</p>
-              <label>
-                Your name
-                <input name="name" key={`name-${customer?._id || 'guest'}`} defaultValue={customer?.name || ''} autoComplete="name" required />
-              </label>
-              <label>
-                Email address
-                <input name="email" key={`email-${customer?._id || 'guest'}`} type="email" defaultValue={customer?.email || ''} autoComplete="email" required />
-              </label>
-              <label>
-                Shipping address
-                <textarea name="address" key={`addr-${customer?._id || 'guest'}`} defaultValue={customer?.address || ''} autoComplete="street-address" rows="3" required placeholder="Street address, city, state, postal code" />
-              </label>
-              <div className="checkout-total"><span>Order total</span><strong>{formatPrice(subtotal)}</strong></div>
-              <button className="primary-button" type="submit" disabled={paymentLoading}>{paymentLoading ? 'Opening secure payment…' : `Pay ${formatPrice(subtotal)} securely`} <Icon name="arrow" size={18} /></button>
+                  <p className="checkout-intro">Shipping &amp; Delivery Details</p>
+                  <label>
+                    Your name
+                    <input name="name" key={`name-${customer?._id || 'guest'}`} defaultValue={customer?.name || ''} autoComplete="name" required />
+                  </label>
+                  <label>
+                    Email address
+                    <input name="email" key={`email-${customer?._id || 'guest'}`} type="email" defaultValue={customer?.email || ''} autoComplete="email" required />
+                  </label>
+                  <label>
+                    Shipping address
+                    <textarea name="address" key={`addr-${customer?._id || 'guest'}`} defaultValue={customer?.address || ''} autoComplete="street-address" rows="3" required placeholder="Street address, city, state, postal code" />
+                  </label>
+                  <div className="checkout-total"><span>Order total</span><strong>{formatPrice(subtotal)}</strong></div>
+                  <button className="primary-button" type="submit" disabled={paymentLoading}>{paymentLoading ? 'Opening secure payment…' : `Pay ${formatPrice(subtotal)} securely`} <Icon name="arrow" size={18} /></button>
+                </>
+              )}
               <button className="back-link" type="button" onClick={() => setCheckout(false)}>Back to your bag</button>
             </form>
           ) : cart.length ? (
             /* VIEW 5: Bag Items */
             <>
-              {!isStaticPreview && (customer ? (
+              {isCommerceEnabled && (customer ? (
                 <div className="cart-user-bar">
                   <span>Signed in as <strong>{customer.name}</strong></span>
                   <button type="button" className="text-button" onClick={() => { setAuthMode('account'); fetchCustomerOrders(); }}>My Account</button>
@@ -730,9 +738,9 @@ function App() {
               </div>
               <div className="drawer-bottom">
                 <div className="subtotal"><span>Subtotal</span><strong>{formatPrice(subtotal)}</strong></div>
-                <p>{isStaticPreview ? 'Your bag is saved only in this browser. No orders can be placed.' : 'Complimentary shipping on all orders. Applicable taxes calculated at checkout.'}</p>
-                {isStaticPreview
-                  ? <button className="primary-button" type="button" disabled>Checkout unavailable in preview</button>
+                <p>{isStaticPreview ? 'Your bag is saved only in this browser. No orders can be placed.' : isAdminOnlyMode ? 'Customer checkout is disabled on this site.' : 'Complimentary shipping on all orders. Applicable taxes calculated at checkout.'}</p>
+                {!isCommerceEnabled
+                  ? <button className="primary-button" type="button" disabled>{isStaticPreview ? 'Checkout unavailable in preview' : 'Checkout currently unavailable'}</button>
                   : <button className="primary-button" onClick={() => setCheckout(true)}>Continue to checkout <Icon name="arrow" size={18} /></button>}
               </div>
             </>

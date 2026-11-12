@@ -21,6 +21,8 @@ dotenv.config({ path: fileURLToPath(new URL('../.env', import.meta.url)) });
 const app = express();
 const port = process.env.PORT || 5000;
 const isProduction = process.env.NODE_ENV === 'production';
+const commerceEnabled = process.env.COMMERCE_ENABLED === 'true'
+  || (!isProduction && process.env.COMMERCE_ENABLED === undefined);
 const uploadsDirectory = process.env.UPLOADS_DIR
   ? path.resolve(process.env.UPLOADS_DIR)
   : path.resolve(fileURLToPath(new URL('.', import.meta.url)), 'uploads');
@@ -131,6 +133,11 @@ function paymentError(message, status = 400) {
   const error = new Error(message);
   error.status = status;
   return error;
+}
+
+function requireCommerce(_request, response, next) {
+  if (!commerceEnabled) return response.status(503).json({ message: 'Customer accounts and checkout are disabled on this site.' });
+  return next();
 }
 
 function razorpayCredentials() {
@@ -505,7 +512,7 @@ function getSalesBuckets(period) {
 }
 
 app.use(cors({ origin: isProduction ? process.env.CLIENT_ORIGIN : true }));
-app.post('/api/payments/razorpay/webhook', express.raw({ type: 'application/json', limit: '100kb' }), async (request, response) => {
+app.post('/api/payments/razorpay/webhook', requireCommerce, express.raw({ type: 'application/json', limit: '100kb' }), async (request, response) => {
   const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
   const signature = request.get('x-razorpay-signature') || '';
   if (!webhookSecret) return response.status(503).json({ message: 'Payment webhook is not configured.' });
@@ -527,6 +534,7 @@ app.post('/api/payments/razorpay/webhook', express.raw({ type: 'application/json
   }
 });
 app.use(express.json({ limit: '100kb' }));
+app.use('/api/customer', requireCommerce);
 app.use('/uploads', express.static(uploadsDirectory, { maxAge: '1d', immutable: true }));
 
 app.get('/api/health', (_request, response) => response.json({ status: 'ok', database: databaseReady ? 'connected' : 'memory' }));
@@ -757,7 +765,7 @@ app.get('/api/products', async (request, response, next) => {
   }
 });
 
-app.post('/api/payments/razorpay/order', async (request, response, next) => {
+app.post('/api/payments/razorpay/order', requireCommerce, async (request, response, next) => {
   try {
     const { customer, items } = request.body || {};
     if (!customer?.name?.trim() || !customer?.email?.trim() || !customer?.address?.trim()) {
@@ -845,7 +853,7 @@ app.post('/api/payments/razorpay/order', async (request, response, next) => {
   }
 });
 
-app.post('/api/payments/razorpay/verify', async (request, response, next) => {
+app.post('/api/payments/razorpay/verify', requireCommerce, async (request, response, next) => {
   try {
     const { razorpay_order_id: razorpayOrderId, razorpay_payment_id: paymentId, razorpay_signature: signature } = request.body || {};
     const { keySecret } = razorpayCredentials();
@@ -864,7 +872,7 @@ app.post('/api/payments/razorpay/verify', async (request, response, next) => {
   }
 });
 
-app.post('/api/orders', async (request, response, next) => {
+app.post('/api/orders', requireCommerce, async (request, response, next) => {
   try {
     const { customer, items } = request.body;
     if (!customer?.name?.trim() || !customer?.email?.trim() || !customer?.address?.trim()) {
@@ -1561,10 +1569,8 @@ function validateProductionConfiguration() {
     'ADMIN_ID',
     'ADMIN_PASSWORD',
     'ADMIN_TOKEN_SECRET',
-    'RAZORPAY_KEY_ID',
-    'RAZORPAY_KEY_SECRET',
-    'RAZORPAY_WEBHOOK_SECRET',
   ];
+  if (commerceEnabled) required.push('RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET');
   const missing = required.filter((name) => !process.env[name]?.trim());
   if (missing.length) throw new Error(`Missing required production environment variables: ${missing.join(', ')}`);
   if (process.env.ADMIN_PASSWORD.length < 16) throw new Error('ADMIN_PASSWORD must be at least 16 characters in production.');
@@ -1575,7 +1581,7 @@ function validateProductionConfiguration() {
   if (/localhost|127\.0\.0\.1/i.test(process.env.MONGODB_URI)) {
     throw new Error('MONGODB_URI must point to a remotely reachable production database.');
   }
-  if (process.env.RAZORPAY_KEY_ID.startsWith('rzp_test_')) {
+  if (commerceEnabled && process.env.RAZORPAY_KEY_ID.startsWith('rzp_test_')) {
     console.warn('Razorpay is configured with test keys; payments will not collect real money.');
   }
 }
