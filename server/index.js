@@ -864,10 +864,6 @@ app.post('/api/payments/razorpay/verify', async (request, response, next) => {
   }
 });
 
-app.post('/api/orders', (_request, response) => response.status(410).json({
-  message: 'Orders must be paid through Razorpay Checkout.',
-}));
-
 app.post('/api/orders', async (request, response, next) => {
   try {
     const { customer, items } = request.body;
