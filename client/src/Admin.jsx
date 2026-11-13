@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import './admin.css';
 import { defaultSiteContent } from './siteDefaults.js';
 import { apiUrl, mediaUrl } from './api.js';
+import { sampleProducts } from '../../server/data/products.js';
 
 const money = (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(value || 0));
 const statuses = ['placed', 'processing', 'shipped', 'complete'];
@@ -87,11 +88,23 @@ function Admin() {
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const handleBackToStorefront = (event) => {
+    if (event) event.preventDefault();
+    window.location.hash = '';
+    if (window.location.pathname.endsWith('/admin') || window.location.pathname.endsWith('/admin/')) {
+      window.location.pathname = window.location.pathname.replace(/\/admin\/?$/, '/');
+    }
+  };
+
   const request = useCallback(async (url, options = {}) => {
     const response = await fetch(apiUrl(url), {
       ...options,
       headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), Authorization: `Bearer ${token}`, ...options.headers },
     });
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error(`Endpoint returned non-JSON response (${response.status})`);
+    }
     const result = await response.json();
     if (response.status === 401) {
       localStorage.removeItem('fasion-admin-token');
@@ -107,6 +120,10 @@ function Admin() {
       headers: { Authorization: 'Bearer ' + token },
       body,
     });
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error(`Upload endpoint returned non-JSON response (${response.status})`);
+    }
     const result = await response.json();
     if (response.status === 401) {
       localStorage.removeItem('fasion-admin-token');
@@ -119,6 +136,134 @@ function Admin() {
   const loadData = useCallback(async () => {
     if (!token) return;
     setLoading(true);
+
+    if (token.startsWith('fasion-preview-token')) {
+      try {
+        const savedProducts = localStorage.getItem('fasion-admin-products');
+        const currentProducts = savedProducts ? JSON.parse(savedProducts) : sampleProducts;
+        setProducts(currentProducts);
+
+        const savedCategories = localStorage.getItem('fasion-admin-categories');
+        const currentCategories = savedCategories ? JSON.parse(savedCategories) : [
+          { _id: 'cat_1', name: 'T-Shirts' },
+          { _id: 'cat_2', name: 'Hoodies' },
+          { _id: 'cat_3', name: 'Jackets' },
+        ];
+        setCategories(currentCategories);
+
+        const savedOrders = localStorage.getItem('fasion-admin-orders');
+        const currentOrders = savedOrders ? JSON.parse(savedOrders) : [
+          {
+            _id: 'ord_1',
+            orderNumber: 'ORD-1001',
+            customer: { name: 'Sumedh Patil', email: 'sumedh@example.com', address: 'Mumbai, Maharashtra' },
+            items: [{ name: 'Heavyweight Boxy Tee', quantity: 2, size: 'L' }],
+            total: 3980,
+            paymentStatus: 'paid',
+            paymentProvider: 'Razorpay',
+            status: 'placed',
+            createdAt: new Date().toISOString(),
+          },
+          {
+            _id: 'ord_2',
+            orderNumber: 'ORD-1002',
+            customer: { name: 'Rahul Sharma', email: 'rahul@example.com', address: 'Bengaluru, Karnataka' },
+            items: [{ name: 'Oversized Heavyweight Hoodie', quantity: 1, size: 'M' }],
+            total: 3490,
+            paymentStatus: 'paid',
+            paymentProvider: 'Razorpay',
+            status: 'processing',
+            createdAt: new Date(Date.now() - 86400000).toISOString(),
+          }
+        ];
+        setOrders(currentOrders);
+
+        const savedCustomers = localStorage.getItem('fasion-admin-customers');
+        const currentCustomers = savedCustomers ? JSON.parse(savedCustomers) : [
+          {
+            _id: 'cust_1',
+            name: 'Sumedh Patil',
+            email: 'sumedh@example.com',
+            phone: '+91 98765 43210',
+            address: 'Mumbai, Maharashtra',
+            clientType: 'registered',
+            createdAt: new Date(Date.now() - 7 * 86400000).toISOString(),
+            lastOrderAt: new Date().toISOString(),
+            orderCount: 1,
+            totalSpent: 3980,
+          },
+          {
+            _id: 'cust_2',
+            name: 'Rahul Sharma',
+            email: 'rahul@example.com',
+            phone: '+91 98220 12345',
+            address: 'Bengaluru, Karnataka',
+            clientType: 'guest',
+            createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+            lastOrderAt: new Date(Date.now() - 86400000).toISOString(),
+            orderCount: 1,
+            totalSpent: 3490,
+          }
+        ];
+        setCustomers(currentCustomers);
+
+        const savedPayments = localStorage.getItem('fasion-admin-payments');
+        const currentPayments = savedPayments ? JSON.parse(savedPayments) : currentOrders.map((o) => ({
+          _id: 'pay_' + o._id,
+          orderNumber: o.orderNumber,
+          customer: o.customer,
+          items: o.items,
+          total: o.total,
+          currency: 'INR',
+          paymentProvider: 'Razorpay',
+          paymentMethod: 'UPI',
+          paymentStatus: 'paid',
+          paymentId: 'pay_preview_' + o._id,
+          razorpayOrderId: 'order_preview_' + o._id,
+          orderStatus: o.status,
+          createdAt: o.createdAt,
+          paidAt: o.createdAt,
+        }));
+        setPayments(currentPayments);
+
+        const savedContent = localStorage.getItem('fasion-admin-site-content');
+        setSiteContent(savedContent ? JSON.parse(savedContent) : defaultSiteContent);
+
+        const grossRevenue = currentOrders.reduce((sum, ord) => sum + (ord.total || 0), 0);
+        const pendingCount = currentOrders.filter((ord) => ord.status === 'placed' || ord.status === 'processing').length;
+        const completedCount = currentOrders.filter((ord) => ord.status === 'complete').length;
+        const lowStockCount = currentProducts.filter((p) => p.stock != null && p.stock < (p.stockThreshold ?? 5) && p.stock > 0).length;
+        const outStockCount = currentProducts.filter((p) => p.stock === 0).length;
+
+        setSummary({
+          revenue: grossRevenue,
+          orders: currentOrders.length,
+          pendingOrders: pendingCount,
+          completedOrders: completedCount,
+          registeredClients: currentCustomers.length,
+          products: currentProducts.length,
+          lowStock: lowStockCount,
+          outOfStock: outStockCount,
+          periodRevenue: grossRevenue,
+          database: 'preview',
+          salesTrend: [
+            { key: 'd1', label: 'Mon', revenue: 1990, orders: 1 },
+            { key: 'd2', label: 'Tue', revenue: 0, orders: 0 },
+            { key: 'd3', label: 'Wed', revenue: 3490, orders: 1 },
+            { key: 'd4', label: 'Thu', revenue: 1990, orders: 1 },
+            { key: 'd5', label: 'Fri', revenue: 0, orders: 0 },
+            { key: 'd6', label: 'Sat', revenue: 3980, orders: 2 },
+            { key: 'd7', label: 'Sun', revenue: 0, orders: 0 },
+          ],
+        });
+      } catch (e) {
+        console.error('Error loading preview data', e);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     try {
       const [nextSummary, nextProducts, nextOrders, nextSiteContent, nextCustomers, nextCategories, nextPayments] = await Promise.all([
         request(`/api/admin/summary?period=${summaryPeriod}`), request('/api/admin/products'), request('/api/admin/orders'),
@@ -143,10 +288,17 @@ function Admin() {
   async function signIn(event) {
     event.preventDefault();
     setLoginError('');
+    const idInput = adminId.trim().toLowerCase();
+    const isMockAdmin = (idInput === 'admin' || idInput === 'sumedh') && password === 'Sumegh@123';
+
     try {
       const response = await fetch(apiUrl('/api/admin/login'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminId, password }),
       });
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Static host: No backend API');
+      }
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || 'Sign in failed.');
       localStorage.setItem('fasion-admin-token', result.token);
@@ -154,7 +306,18 @@ function Admin() {
       setAdminId('');
       setPassword('');
     } catch (error) {
-      setLoginError(error.message);
+      if (isMockAdmin) {
+        const previewToken = 'fasion-preview-token-' + Date.now();
+        localStorage.setItem('fasion-admin-token', previewToken);
+        setToken(previewToken);
+        setAdminId('');
+        setPassword('');
+        setNotice('Studio opened in preview mode.');
+      } else {
+        setLoginError(error.message.includes('Static host') || error.name === 'TypeError'
+          ? 'Invalid credentials. Use ID: admin & Password: Sumegh@123'
+          : error.message);
+      }
     }
   }
 
@@ -172,6 +335,25 @@ function Admin() {
       setSaving(false);
       return;
     }
+
+    if (token.startsWith('fasion-preview-token')) {
+      const newId = productDialog._id || `prod_${Date.now()}`;
+      const updatedProduct = {
+        ...productDialog,
+        ...product,
+        _id: newId,
+      };
+      const nextList = productDialog._id
+        ? products.map((p) => (p._id === productDialog._id ? updatedProduct : p))
+        : [updatedProduct, ...products];
+      setProducts(nextList);
+      localStorage.setItem('fasion-admin-products', JSON.stringify(nextList));
+      setProductDialog(null);
+      setNotice(productDialog._id ? 'Product changes saved.' : 'Product added to the catalog.');
+      setSaving(false);
+      return;
+    }
+
     try {
       await request(productDialog._id ? `/api/admin/products/${productDialog._id}` : '/api/admin/products', {
         method: productDialog._id ? 'PUT' : 'POST', body: JSON.stringify(product),
@@ -188,6 +370,36 @@ function Admin() {
 
   async function uploadImage(file, target, key) {
     setImageUploading(true);
+
+    if (token.startsWith('fasion-preview-token')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const url = e.target.result;
+        if (target === 'product') {
+          setProductDialog((current) => {
+            const images = [...new Set([...(current.images || (current.image ? [current.image] : [])), url])];
+            return { ...current, images: images.slice(0, 8), image: images[0] };
+          });
+        } else if (target === 'product-cover') {
+          setProductDialog((current) => {
+            const images = current.images || (current.image ? [current.image] : []);
+            const nextImages = [...new Set([url, ...images.slice(1)])];
+            return { ...current, images: nextImages.slice(0, 8), image: nextImages[0] };
+          });
+        } else {
+          setSiteContent((current) => ({ ...current, [key]: url }));
+        }
+        setNotice('Image uploaded. Save your changes to publish it.');
+        setImageUploading(false);
+      };
+      reader.onerror = () => {
+        setNotice('Could not read image file.');
+        setImageUploading(false);
+      };
+      reader.readAsDataURL(file[0]);
+      return;
+    }
+
     const form = new FormData();
     for (const item of file) form.append('images', item);
     try {
@@ -218,6 +430,16 @@ function Admin() {
     event.preventDefault();
     setSaving(true);
     const content = Object.fromEntries(new FormData(event.currentTarget).entries());
+
+    if (token.startsWith('fasion-preview-token')) {
+      const nextContent = { ...defaultSiteContent, ...content };
+      setSiteContent(nextContent);
+      localStorage.setItem('fasion-admin-site-content', JSON.stringify(nextContent));
+      setNotice('Storefront content saved.');
+      setSaving(false);
+      return;
+    }
+
     try {
       const savedContent = await request('/api/admin/site-content', { method: 'PUT', body: JSON.stringify(content) });
       setSiteContent({ ...defaultSiteContent, ...savedContent });
@@ -231,6 +453,15 @@ function Admin() {
 
   async function removeProduct(product) {
     if (!window.confirm(`Remove ${product.name} from the catalog?`)) return;
+
+    if (token.startsWith('fasion-preview-token')) {
+      const nextList = products.filter((p) => p._id !== product._id);
+      setProducts(nextList);
+      localStorage.setItem('fasion-admin-products', JSON.stringify(nextList));
+      setNotice('Product removed.');
+      return;
+    }
+
     try {
       await request(`/api/admin/products/${product._id}`, { method: 'DELETE' });
       setNotice('Product removed.');
@@ -239,6 +470,14 @@ function Admin() {
   }
 
   async function updateOrder(id, status) {
+    if (token.startsWith('fasion-preview-token')) {
+      const nextOrders = orders.map((order) => order._id === id ? { ...order, status } : order);
+      setOrders(nextOrders);
+      localStorage.setItem('fasion-admin-orders', JSON.stringify(nextOrders));
+      setNotice('Order status updated.');
+      return;
+    }
+
     try {
       await request(`/api/admin/orders/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) });
       setOrders((current) => current.map((order) => order._id === id ? { ...order, status } : order));
@@ -250,6 +489,19 @@ function Admin() {
   async function saveCategory(event) {
     event.preventDefault();
     setSaving(true);
+
+    if (token.startsWith('fasion-preview-token')) {
+      const nextCat = categoryDialog._id
+        ? categories.map((c) => (c._id === categoryDialog._id ? { ...c, name: categoryDialog.name } : c))
+        : [...categories, { _id: `cat_${Date.now()}`, name: categoryDialog.name }];
+      setCategories(nextCat);
+      localStorage.setItem('fasion-admin-categories', JSON.stringify(nextCat));
+      setCategoryDialog(null);
+      setNotice(categoryDialog._id ? 'Category updated.' : 'Category created.');
+      setSaving(false);
+      return;
+    }
+
     try {
       await request(categoryDialog._id ? `/api/admin/categories/${categoryDialog._id}` : '/api/admin/categories', {
         method: categoryDialog._id ? 'PUT' : 'POST',
@@ -267,6 +519,15 @@ function Admin() {
 
   async function removeCategory(category) {
     if (!window.confirm(`Delete the ${category.name} category?`)) return;
+
+    if (token.startsWith('fasion-preview-token')) {
+      const nextCat = categories.filter((c) => c._id !== category._id);
+      setCategories(nextCat);
+      localStorage.setItem('fasion-admin-categories', JSON.stringify(nextCat));
+      setNotice('Category deleted.');
+      return;
+    }
+
     try {
       await request(`/api/admin/categories/${category._id}`, { method: 'DELETE' });
       setNotice('Category deleted.');
@@ -308,6 +569,26 @@ function Admin() {
         return;
       }
     }
+
+    if (token.startsWith('fasion-preview-token')) {
+      const nextList = products.map((p) => {
+        if (p._id !== inventoryDialog._id) return p;
+        return {
+          ...p,
+          stock,
+          stockThreshold: Number(inventoryDialog.stockThreshold),
+          isAvailable: inventoryDialog.isAvailable,
+          variants: inventoryDialog.variants,
+        };
+      });
+      setProducts(nextList);
+      localStorage.setItem('fasion-admin-products', JSON.stringify(nextList));
+      setInventoryDialog(null);
+      setNotice('Inventory changes saved.');
+      setSaving(false);
+      return;
+    }
+
     try {
       await request(`/api/admin/products/${inventoryDialog._id}/inventory`, {
         method: 'PUT',
@@ -329,6 +610,23 @@ function Admin() {
   }
 
   async function showInventoryHistory(product) {
+    if (token.startsWith('fasion-preview-token')) {
+      setInventoryHistoryDialog({
+        product,
+        history: [
+          {
+            previousStock: (product.stock || 10) + 5,
+            newStock: product.stock ?? 10,
+            admin: 'admin',
+            sku: product.sku || product._id,
+            updatedAt: new Date().toISOString(),
+            newVariants: product.variants,
+          }
+        ]
+      });
+      return;
+    }
+
     try {
       const history = await request(`/api/admin/products/${product._id}/inventory-history`);
       setInventoryHistoryDialog({ product, history });
@@ -345,9 +643,9 @@ function Admin() {
 
   if (!token) return (
     <main className="admin-login-shell">
-      <a href="/" className="admin-back">← Back to storefront</a>
+      <a href="#/" onClick={handleBackToStorefront} className="admin-back">← Back to storefront</a>
       <section className="admin-login-panel">
-        <a className="admin-wordmark" href="/">FASION<span> / STUDIO</span></a>
+        <a className="admin-wordmark" href="#/" onClick={handleBackToStorefront}>FASION<span> / STUDIO</span></a>
         <p className="admin-kicker">THE BACK OFFICE</p>
         <h1>Good to have<br /><em>you back.</em></h1>
         <p className="admin-login-copy">Sign in to look after your shop.</p>
@@ -359,7 +657,7 @@ function Admin() {
           {loginError && <p className="admin-error" role="alert">{loginError}</p>}
           <button type="submit" className="admin-primary">Enter the studio <span>↗</span></button>
         </form>
-        <p className="admin-security-note">Admin access is configured on the server.</p>
+        <p className="admin-security-note">Admin access is configured on the server (ID: admin / PW: Sumegh@123).</p>
       </section>
       <span className="login-side-note">FASION STUDIO · PRIVATE ACCESS</span>
     </main>
@@ -380,7 +678,7 @@ function Admin() {
           : product.stock == null ? 'untracked' : 'in';
     return matchesSearch && (inventoryStatusFilter === 'all' || status === inventoryStatusFilter);
   });
-  const categoryChoices = categories.length ? categories.map((category) => category.name) : ['T-Shirts', 'Shirts', 'Hoodies', 'Jackets'];
+  const categoryChoices = categories.length ? categories.map((category) => category.name) : ['T-Shirts', 'Hoodies', 'Jackets'];
   const purchasePrice = Number(productDialog?.purchasePrice);
   const sellingPrice = Number(productDialog?.price);
   const hasProductCosts = productDialog?.purchasePrice !== '' && Number.isFinite(purchasePrice) && Number.isFinite(sellingPrice);
@@ -389,16 +687,16 @@ function Admin() {
   return (
     <div className="admin-app">
       <aside className="admin-sidebar">
-        <a className="admin-wordmark" href="/">FASION<span> / STUDIO</span></a>
+        <a className="admin-wordmark" href="#/" onClick={handleBackToStorefront}>FASION<span> / STUDIO</span></a>
         <p className="sidebar-label">WORKSPACE</p>
         <nav className="admin-nav" aria-label="Admin sections">
           {['Overview', 'Products', 'Categories', 'Inventory', 'Orders', 'Payments', 'Clients', 'Storefront'].map((item) => <button key={item} className={section === item ? 'selected' : ''} onClick={() => { setSection(item); setSearch(''); }}><span className="nav-dot" />{item}{item === 'Orders' && summary?.pendingOrders > 0 && <span className="nav-count">{summary.pendingOrders}</span>}</button>)}
         </nav>
-        <div className="sidebar-bottom"><a href="/">View storefront <span>↗</span></a><button onClick={signOut}>Sign out <span>→</span></button><small>FASION STUDIO · 2026</small></div>
+        <div className="sidebar-bottom"><a href="#/" onClick={handleBackToStorefront}>View storefront <span>↗</span></a><button onClick={signOut}>Sign out <span>→</span></button><small>FASION STUDIO · 2026</small></div>
       </aside>
 
       <main className="admin-main">
-        <header className="admin-topbar"><div><span className="topbar-label">FASION / STUDIO</span><span className="topbar-divider">/</span><span>{section}</span></div><div className="topbar-user"><span className="connection-dot" />{summary?.database === 'connected' ? 'MongoDB connected' : 'Local data mode'}<span className="avatar">F</span></div></header>
+        <header className="admin-topbar"><div><span className="topbar-label">FASION / STUDIO</span><span className="topbar-divider">/</span><span>{section}</span></div><div className="topbar-user"><span className="connection-dot" />{summary?.database === 'connected' ? 'MongoDB connected' : summary?.database === 'preview' ? 'Preview Studio Mode' : 'Local data mode'}<span className="avatar">F</span></div></header>
         <div className="admin-content">
           {section === 'Overview' && <>
             <div className="page-title-row"><div><p className="admin-kicker">YOUR SHOP, AT A GLANCE</p><h1>Good morning<span>.</span></h1><p className="admin-subtitle">Here’s what’s happening with your store.</p></div><button className="refresh-button" onClick={loadData} disabled={loading}>↻ <span>Refresh</span></button></div>

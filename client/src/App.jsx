@@ -52,11 +52,35 @@ function Icon({ name, size = 20, fill = 'none' }) {
 function App() {
   const logoTapCount = useRef(0);
   const logoTapTimer = useRef(null);
-  const [products, setProducts] = useState(isStaticPreview ? sampleProducts : []);
-  const [categories, setCategories] = useState(isStaticPreview
-    ? [...new Set(sampleProducts.map((product) => product.category))]
-    : defaultCategories);
-  const [siteContent, setSiteContent] = useState(defaultSiteContent);
+  const [products, setProducts] = useState(() => {
+    if (isStaticPreview) {
+      try {
+        const stored = JSON.parse(localStorage.getItem('fasion-admin-products') || 'null');
+        if (Array.isArray(stored) && stored.length > 0) return stored;
+      } catch {}
+      return sampleProducts;
+    }
+    return [];
+  });
+  const [categories, setCategories] = useState(() => {
+    if (isStaticPreview) {
+      try {
+        const storedCats = JSON.parse(localStorage.getItem('fasion-admin-categories') || 'null');
+        if (Array.isArray(storedCats) && storedCats.length > 0) return storedCats.map((c) => c.name || c);
+      } catch {}
+      return [...new Set(sampleProducts.map((product) => product.category))];
+    }
+    return defaultCategories;
+  });
+  const [siteContent, setSiteContent] = useState(() => {
+    if (isStaticPreview) {
+      try {
+        const stored = JSON.parse(localStorage.getItem('fasion-admin-site-content') || 'null');
+        if (stored) return { ...defaultSiteContent, ...stored };
+      } catch {}
+    }
+    return defaultSiteContent;
+  });
   const [category, setCategory] = useState('All pieces');
   const [query, setQuery] = useState('');
   const [sortOrder, setSortOrder] = useState('featured');
@@ -183,11 +207,10 @@ function App() {
   };
 
   function handleLogoTap() {
-    if (isStaticPreview) return;
     logoTapCount.current += 1;
     window.clearTimeout(logoTapTimer.current);
     if (logoTapCount.current === 5) {
-      window.location.assign('/admin');
+      window.location.hash = 'admin';
       return;
     }
     logoTapTimer.current = window.setTimeout(() => {
@@ -434,11 +457,11 @@ function App() {
 
   return (
     <>
-      {isStaticPreview && <div className="preview-banner" role="status">Static preview · Browse and add pieces to your bag; checkout, accounts, and admin are unavailable.</div>}
+      {isStaticPreview && <div className="preview-banner" role="status">Static preview · Browse pieces or open <a href="#admin" style={{ color: 'inherit', fontWeight: 'bold' }}>Studio Admin</a>.</div>}
       {isAdminOnlyMode && <div className="preview-banner" role="status">Customer accounts and checkout are disabled on this site.</div>}
       <div className="announcement">{siteContent.announcement}</div>
       <header className="site-header">
-        <button className="wordmark" type="button" onClick={handleLogoTap} aria-label={isStaticPreview ? 'FASION home' : 'Tap the logo five times to open the admin panel'}>{siteContent.brandName}<span>®</span></button>
+        <button className="wordmark" type="button" onClick={handleLogoTap} aria-label="Tap the logo five times to open the admin panel">{siteContent.brandName}<span>®</span></button>
         <nav className="main-nav" aria-label="Main navigation">
           <a href="#collection" onClick={() => setCategory('All pieces')}>Shop all</a>
           {categories.map((name) => <a key={name} href="#collection" onClick={() => setCategory(name)}>{categoryLabel(name)}</a>)}
@@ -540,7 +563,11 @@ function App() {
         </section>
       </main>
 
-      <footer className="site-footer"><a className="wordmark" href="#top">{siteContent.brandName}<span>®</span></a><span>{siteContent.footerTagline}</span><span>{siteContent.footerCopyright}</span></footer>
+      <footer className="site-footer">
+        <a className="wordmark" href="#top">{siteContent.brandName}<span>®</span></a>
+        <span>{siteContent.footerTagline}</span>
+        <span>{siteContent.footerCopyright} · <a href="#admin" style={{ color: 'inherit', textDecoration: 'none', opacity: 0.8 }}>Studio</a></span>
+      </footer>
 
       {cartOpen && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setCartOpen(false); }}>
         <aside className="drawer" aria-label="Shopping bag">
