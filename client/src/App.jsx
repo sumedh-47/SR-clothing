@@ -457,7 +457,7 @@ function App() {
 
   return (
     <>
-      {isStaticPreview && <div className="preview-banner" role="status">Static preview · Browse pieces; checkout is unavailable.</div>}
+      {isStaticPreview && <div className="preview-banner" role="status">Static preview · Browse pieces or open <a href="#admin" style={{ color: 'inherit', fontWeight: 'bold', textDecoration: 'underline' }}>Studio Admin</a>.</div>}
       {isAdminOnlyMode && <div className="preview-banner" role="status">Customer accounts and checkout are disabled on this site.</div>}
       <div className="announcement">{siteContent.announcement}</div>
       <header className="site-header">
@@ -566,7 +566,7 @@ function App() {
       <footer className="site-footer">
         <a className="wordmark" href="#top">{siteContent.brandName}<span>®</span></a>
         <span>{siteContent.footerTagline}</span>
-        <span>{siteContent.footerCopyright}{!isStaticPreview && <> · <a href="#admin" style={{ color: 'inherit', textDecoration: 'none', opacity: 0.8 }}>Studio</a></>}</span>
+        <span>{siteContent.footerCopyright} · <a href="#admin" style={{ color: 'inherit', textDecoration: 'none', opacity: 0.8 }}>Studio</a></span>
       </footer>
 
       {cartOpen && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setCartOpen(false); }}>
