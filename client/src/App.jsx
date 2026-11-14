@@ -207,8 +207,6 @@ function App() {
   };
 
   function handleLogoTap() {
-    if (isStaticPreview) return;
-
     logoTapCount.current += 1;
     window.clearTimeout(logoTapTimer.current);
     if (logoTapCount.current === 5) {
@@ -463,7 +461,7 @@ function App() {
       {isAdminOnlyMode && <div className="preview-banner" role="status">Customer accounts and checkout are disabled on this site.</div>}
       <div className="announcement">{siteContent.announcement}</div>
       <header className="site-header">
-        <button className="wordmark" type="button" onClick={handleLogoTap} aria-label={isStaticPreview ? 'FASION storefront' : 'Tap the logo five times to open the admin panel'}>{siteContent.brandName}<span>®</span></button>
+        <button className="wordmark" type="button" onClick={handleLogoTap} aria-label="Tap the logo five times to open Admin sign-in">{siteContent.brandName}<span>®</span></button>
         <nav className="main-nav" aria-label="Main navigation">
           <a href="#collection" onClick={() => setCategory('All pieces')}>Shop all</a>
           {categories.map((name) => <a key={name} href="#collection" onClick={() => setCategory(name)}>{categoryLabel(name)}</a>)}
