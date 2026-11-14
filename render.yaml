@@ -2,21 +2,15 @@ services:
   - type: web
     name: sr-clothing-api
     runtime: node
-    plan: starter
+    plan: free
     buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /api/health
-    disk:
-      name: product-uploads
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
       - key: COMMERCE_ENABLED
         value: "false"
-      - key: UPLOADS_DIR
-        value: /var/data/uploads
       - key: MONGODB_URI
         sync: false
       - key: CLIENT_ORIGIN

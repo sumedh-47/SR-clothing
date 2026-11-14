@@ -137,7 +137,7 @@ function Admin() {
     if (!token) return;
     setLoading(true);
 
-    if (token.startsWith('fasion-preview-token')) {
+    if (import.meta.env.DEV && token.startsWith('fasion-preview-token')) {
       try {
         const savedProducts = localStorage.getItem('fasion-admin-products');
         const currentProducts = savedProducts ? JSON.parse(savedProducts) : sampleProducts;
@@ -288,8 +288,6 @@ function Admin() {
   async function signIn(event) {
     event.preventDefault();
     setLoginError('');
-    const idInput = adminId.trim().toLowerCase();
-    const isMockAdmin = (idInput === 'admin' || idInput === 'sumedh') && password === 'Sumegh@123';
 
     try {
       const response = await fetch(apiUrl('/api/admin/login'), {
@@ -306,18 +304,9 @@ function Admin() {
       setAdminId('');
       setPassword('');
     } catch (error) {
-      if (isMockAdmin) {
-        const previewToken = 'fasion-preview-token-' + Date.now();
-        localStorage.setItem('fasion-admin-token', previewToken);
-        setToken(previewToken);
-        setAdminId('');
-        setPassword('');
-        setNotice('Studio opened in preview mode.');
-      } else {
-        setLoginError(error.message.includes('Static host') || error.name === 'TypeError'
-          ? 'Invalid credentials. Use ID: admin & Password: Sumegh@123'
-          : error.message);
-      }
+      setLoginError(error.message.includes('Static host') || error.name === 'TypeError'
+        ? 'Admin sign-in requires the configured server.'
+        : error.message);
     }
   }
 
@@ -336,7 +325,7 @@ function Admin() {
       return;
     }
 
-    if (token.startsWith('fasion-preview-token')) {
+    if (import.meta.env.DEV && token.startsWith('fasion-preview-token')) {
       const newId = productDialog._id || `prod_${Date.now()}`;
       const updatedProduct = {
         ...productDialog,
@@ -371,7 +360,7 @@ function Admin() {
   async function uploadImage(file, target, key) {
     setImageUploading(true);
 
-    if (token.startsWith('fasion-preview-token')) {
+    if (import.meta.env.DEV && token.startsWith('fasion-preview-token')) {
       const reader = new FileReader();
       reader.onload = (e) => {
         const url = e.target.result;
@@ -431,7 +420,7 @@ function Admin() {
     setSaving(true);
     const content = Object.fromEntries(new FormData(event.currentTarget).entries());
 
-    if (token.startsWith('fasion-preview-token')) {
+    if (import.meta.env.DEV && token.startsWith('fasion-preview-token')) {
       const nextContent = { ...defaultSiteContent, ...content };
       setSiteContent(nextContent);
       localStorage.setItem('fasion-admin-site-content', JSON.stringify(nextContent));
@@ -454,7 +443,7 @@ function Admin() {
   async function removeProduct(product) {
     if (!window.confirm(`Remove ${product.name} from the catalog?`)) return;
 
-    if (token.startsWith('fasion-preview-token')) {
+    if (import.meta.env.DEV && token.startsWith('fasion-preview-token')) {
       const nextList = products.filter((p) => p._id !== product._id);
       setProducts(nextList);
       localStorage.setItem('fasion-admin-products', JSON.stringify(nextList));
@@ -470,7 +459,7 @@ function Admin() {
   }
 
   async function updateOrder(id, status) {
-    if (token.startsWith('fasion-preview-token')) {
+    if (import.meta.env.DEV && token.startsWith('fasion-preview-token')) {
       const nextOrders = orders.map((order) => order._id === id ? { ...order, status } : order);
       setOrders(nextOrders);
       localStorage.setItem('fasion-admin-orders', JSON.stringify(nextOrders));
@@ -490,7 +479,7 @@ function Admin() {
     event.preventDefault();
     setSaving(true);
 
-    if (token.startsWith('fasion-preview-token')) {
+    if (import.meta.env.DEV && token.startsWith('fasion-preview-token')) {
       const nextCat = categoryDialog._id
         ? categories.map((c) => (c._id === categoryDialog._id ? { ...c, name: categoryDialog.name } : c))
         : [...categories, { _id: `cat_${Date.now()}`, name: categoryDialog.name }];
@@ -520,7 +509,7 @@ function Admin() {
   async function removeCategory(category) {
     if (!window.confirm(`Delete the ${category.name} category?`)) return;
 
-    if (token.startsWith('fasion-preview-token')) {
+    if (import.meta.env.DEV && token.startsWith('fasion-preview-token')) {
       const nextCat = categories.filter((c) => c._id !== category._id);
       setCategories(nextCat);
       localStorage.setItem('fasion-admin-categories', JSON.stringify(nextCat));
@@ -570,7 +559,7 @@ function Admin() {
       }
     }
 
-    if (token.startsWith('fasion-preview-token')) {
+    if (import.meta.env.DEV && token.startsWith('fasion-preview-token')) {
       const nextList = products.map((p) => {
         if (p._id !== inventoryDialog._id) return p;
         return {
@@ -610,7 +599,7 @@ function Admin() {
   }
 
   async function showInventoryHistory(product) {
-    if (token.startsWith('fasion-preview-token')) {
+    if (import.meta.env.DEV && token.startsWith('fasion-preview-token')) {
       setInventoryHistoryDialog({
         product,
         history: [
@@ -657,7 +646,7 @@ function Admin() {
           {loginError && <p className="admin-error" role="alert">{loginError}</p>}
           <button type="submit" className="admin-primary">Enter the studio <span>↗</span></button>
         </form>
-        <p className="admin-security-note">Admin access is configured on the server (ID: admin / PW: Sumegh@123).</p>
+        <p className="admin-security-note">Admin access is configured by the site owner.</p>
       </section>
       <span className="login-side-note">FASION STUDIO · PRIVATE ACCESS</span>
     </main>

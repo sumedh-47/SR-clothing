@@ -207,6 +207,8 @@ function App() {
   };
 
   function handleLogoTap() {
+    if (isStaticPreview) return;
+
     logoTapCount.current += 1;
     window.clearTimeout(logoTapTimer.current);
     if (logoTapCount.current === 5) {
@@ -457,11 +459,11 @@ function App() {
 
   return (
     <>
-      {isStaticPreview && <div className="preview-banner" role="status">Static preview · Browse pieces or open <a href="#admin" style={{ color: 'inherit', fontWeight: 'bold' }}>Studio Admin</a>.</div>}
+      {isStaticPreview && <div className="preview-banner" role="status">Static preview · Browse pieces; checkout is unavailable.</div>}
       {isAdminOnlyMode && <div className="preview-banner" role="status">Customer accounts and checkout are disabled on this site.</div>}
       <div className="announcement">{siteContent.announcement}</div>
       <header className="site-header">
-        <button className="wordmark" type="button" onClick={handleLogoTap} aria-label="Tap the logo five times to open the admin panel">{siteContent.brandName}<span>®</span></button>
+        <button className="wordmark" type="button" onClick={handleLogoTap} aria-label={isStaticPreview ? 'FASION storefront' : 'Tap the logo five times to open the admin panel'}>{siteContent.brandName}<span>®</span></button>
         <nav className="main-nav" aria-label="Main navigation">
           <a href="#collection" onClick={() => setCategory('All pieces')}>Shop all</a>
           {categories.map((name) => <a key={name} href="#collection" onClick={() => setCategory(name)}>{categoryLabel(name)}</a>)}
@@ -566,7 +568,7 @@ function App() {
       <footer className="site-footer">
         <a className="wordmark" href="#top">{siteContent.brandName}<span>®</span></a>
         <span>{siteContent.footerTagline}</span>
-        <span>{siteContent.footerCopyright} · <a href="#admin" style={{ color: 'inherit', textDecoration: 'none', opacity: 0.8 }}>Studio</a></span>
+        <span>{siteContent.footerCopyright}{!isStaticPreview && <> · <a href="#admin" style={{ color: 'inherit', textDecoration: 'none', opacity: 0.8 }}>Studio</a></>}</span>
       </footer>
 
       {cartOpen && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setCartOpen(false); }}>

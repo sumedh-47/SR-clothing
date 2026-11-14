@@ -4,8 +4,12 @@ import App from './App.jsx';
 import Admin from './Admin.jsx';
 import './styles.css';
 
+const isStaticPreview = import.meta.env.VITE_STATIC_PREVIEW === 'true';
+
 function Root() {
   const checkAdmin = () => {
+    if (isStaticPreview) return false;
+
     const p = window.location.pathname;
     const h = window.location.hash;
     const s = window.location.search;
