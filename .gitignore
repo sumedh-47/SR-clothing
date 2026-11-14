@@ -2,3 +2,4 @@ node_modules/
 dist/
 .env
 *.log
+COLLEGE_PROJECT_REPORT.md
